@@ -18,11 +18,20 @@ export interface AgentJobRow {
   pr_url: string | null;
   branch_name: string | null;
   summary: string | null;
+  /** UI locale snapshot at enqueue (en | uz | ru). */
+  locale: string;
   created_at: string;
   updated_at: string;
 }
 
 let dbSingleton: Database.Database | null = null;
+
+function migrateAgentJobsLocale(db: Database.Database): void {
+  const cols = db.prepare("PRAGMA table_info(agent_jobs)").all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "locale")) {
+    db.exec(`ALTER TABLE agent_jobs ADD COLUMN locale TEXT NOT NULL DEFAULT 'en'`);
+  }
+}
 
 export function getDb(): Database.Database {
   if (dbSingleton) return dbSingleton;
@@ -54,6 +63,9 @@ export function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON agent_jobs(status);
     CREATE INDEX IF NOT EXISTS idx_jobs_cursor ON agent_jobs(cursor_agent_id);
+  `);
+  migrateAgentJobsLocale(db);
+  db.exec(`
     CREATE TABLE IF NOT EXISTS pending_actions (
       id TEXT PRIMARY KEY,
       telegram_user_id INTEGER NOT NULL,
@@ -73,10 +85,10 @@ export function insertJob(row: Omit<AgentJobRow, "created_at" | "updated_at">): 
   db.prepare(
     `INSERT INTO agent_jobs (
       id, telegram_user_id, chat_id, cursor_agent_id, status, prompt, repository, ref,
-      last_error, pr_url, branch_name, summary, created_at, updated_at
+      last_error, pr_url, branch_name, summary, locale, created_at, updated_at
     ) VALUES (
       @id, @telegram_user_id, @chat_id, @cursor_agent_id, @status, @prompt, @repository, @ref,
-      @last_error, @pr_url, @branch_name, @summary, @created_at, @updated_at
+      @last_error, @pr_url, @branch_name, @summary, @locale, @created_at, @updated_at
     )`
   ).run({
     ...row,

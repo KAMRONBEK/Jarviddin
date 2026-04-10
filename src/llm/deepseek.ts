@@ -1,5 +1,7 @@
 import { config } from "../config.js";
 import { stripJsonFence } from "./jsonText.js";
+import type { AppLocale } from "../i18n/types.js";
+import { GATE_OUTPUT_LANGUAGE_POLICY } from "./languagePolicy.js";
 
 export interface GateResult {
   can_run: boolean;
@@ -12,6 +14,17 @@ export interface GateInput {
   repository: string;
   ref: string;
   clarifications: string[];
+  locale: AppLocale;
+}
+
+function gateLanguageRules(locale: AppLocale): string {
+  if (locale === "uz") {
+    return "Write question and quick_replies in Uzbek (Latin or Cyrillic to match the user when obvious). Keep GitHub URLs and repo names in Latin.";
+  }
+  if (locale === "ru") {
+    return "Write question and quick_replies in Russian.";
+  }
+  return "Write question and quick_replies in English.";
 }
 
 function parseGateJson(text: string): GateResult | null {
@@ -53,7 +66,11 @@ Rules:
 - If repository is missing, empty, or clearly a placeholder (e.g. your-org/your-repo), set can_run false and ask which GitHub repo to use; quick_replies 2-4 short options.
 - If the task is empty or too vague for engineering work, can_run false and ask ONE clarifying question with 2-4 quick_replies.
 - If information is sufficient, can_run true, question null, quick_replies [].
-- quick_replies must be short button labels (under 50 chars each), max 4 items.`,
+- quick_replies must be short button labels (under 50 chars each), max 4 items.
+
+Language:
+- ${gateLanguageRules(input.locale)}
+- ${GATE_OUTPUT_LANGUAGE_POLICY}`,
       },
       {
         role: "user" as const,

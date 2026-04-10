@@ -1,17 +1,40 @@
 import { config } from "../config.js";
+import { strings } from "../i18n/messages.js";
+import type { AppLocale } from "../i18n/types.js";
+import { PERSONA_OUTPUT_LANGUAGE_POLICY, replyUsesDisallowedScript } from "./languagePolicy.js";
+
+function personaLocaleLine(locale: AppLocale): string {
+  if (locale === "uz") {
+    return "Rephrase in Uzbek (Latin or Cyrillic) when appropriate; concise, professional, calm.";
+  }
+  if (locale === "ru") {
+    return "Rephrase in Russian; concise, professional, calm.";
+  }
+  return "Rephrase in English; concise, professional, calm—not theatrical unless the user asked for that.";
+}
 
 /**
  * Optional tone pass for terminal notices (Jarviddin — work assistant). Preserves URLs, PR links, and IDs verbatim on success.
  */
-export async function wrapTerminalNotice(prefix: "Done" | "Failed", body: string): Promise<string> {
+export async function wrapTerminalNotice(
+  kind: "completed" | "failed",
+  body: string,
+  locale: AppLocale
+): Promise<string> {
+  const m = strings(locale);
+  const prefix = kind === "completed" ? m.terminalDone : m.terminalFailed;
   const plain = `${prefix}\n${body}`;
   if (!config.deepseek.apiKey.trim()) return plain;
 
   const override = config.conversational.assistantSystemPrompt.trim();
   const system = [
     override ||
-      "You rephrase short status messages for Jarviddin, the user's assistant for work: concise, professional, and calm—not theatrical or British-butler unless the user asked for that.",
+      [
+        "You rephrase short status messages for Jarviddin, the user's assistant for work.",
+        personaLocaleLine(locale),
+      ].join(" "),
     "Return ONLY the final message text. No markdown fences.",
+    PERSONA_OUTPUT_LANGUAGE_POLICY,
     "Preserve every URL, PR link, UUID, job id, and path exactly as given — do not shorten or reformat them.",
   ].join("\n");
 
@@ -44,6 +67,7 @@ export async function wrapTerminalNotice(prefix: "Done" | "Failed", body: string
     };
     const out = data.choices?.[0]?.message?.content?.trim() ?? "";
     if (!out) return plain;
+    if (replyUsesDisallowedScript(out)) return plain;
     return out;
   } catch {
     return plain;

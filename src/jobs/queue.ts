@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { config } from "../config.js";
 import { CursorAgentsClient } from "../cursor/client.js";
 import { insertJob, updateJob, countRunningJobs, type AgentJobRow } from "../store/db.js";
+import type { AppLocale } from "../i18n/types.js";
+import { normalizeAppLocale } from "../i18n/types.js";
+import { strings, tx } from "../i18n/messages.js";
 
 const client = new CursorAgentsClient();
 
@@ -11,6 +14,7 @@ export interface EnqueueParams {
   prompt: string;
   repository: string;
   ref: string;
+  locale: AppLocale;
 }
 
 export interface EnqueueResult {
@@ -25,7 +29,10 @@ export async function enqueueCursorAgent(params: EnqueueParams): Promise<Enqueue
   if (running >= config.cursor.maxConcurrentAgents) {
     return {
       ok: false,
-      error: `Too many active agents (${running}/${config.cursor.maxConcurrentAgents}). Wait for one to finish.`,
+      error: tx(params.locale, "tooManyAgents", {
+        running,
+        max: config.cursor.maxConcurrentAgents,
+      }),
     };
   }
 
@@ -41,7 +48,7 @@ export async function enqueueCursorAgent(params: EnqueueParams): Promise<Enqueue
 
     const agentId = launched.id;
     if (!agentId) {
-      return { ok: false, error: "Cursor API returned no agent id" };
+      return { ok: false, error: strings(params.locale).cursorApiNoAgentId };
     }
 
     insertJob({
@@ -57,6 +64,7 @@ export async function enqueueCursorAgent(params: EnqueueParams): Promise<Enqueue
       pr_url: launched.target?.prUrl ?? null,
       branch_name: launched.target?.branchName ?? null,
       summary: launched.summary ?? null,
+      locale: params.locale,
     });
 
     return { ok: true, jobId, cursorAgentId: agentId };
@@ -67,15 +75,17 @@ export async function enqueueCursorAgent(params: EnqueueParams): Promise<Enqueue
 }
 
 export function formatJobStatusLine(job: AgentJobRow): string {
+  const loc = normalizeAppLocale(job.locale);
+  const m = strings(loc);
   const lines = [
-    `Job: ${job.id}`,
-    `Cursor agent: ${job.cursor_agent_id}`,
-    `Status: ${job.status}`,
-    `Repo: ${job.repository} @ ${job.ref}`,
+    `${m.jobLabel} ${job.id}`,
+    `${m.cursorAgentLabel} ${job.cursor_agent_id}`,
+    `${m.statusLabel} ${job.status}`,
+    `${m.repoLabel} ${job.repository} @ ${job.ref}`,
   ];
-  if (job.branch_name) lines.push(`Branch: ${job.branch_name}`);
-  if (job.pr_url) lines.push(`PR: ${job.pr_url}`);
-  if (job.summary) lines.push(`Summary: ${job.summary}`);
-  if (job.last_error) lines.push(`Error: ${job.last_error}`);
+  if (job.branch_name) lines.push(`${m.branchLabel} ${job.branch_name}`);
+  if (job.pr_url) lines.push(`${m.prLabel} ${job.pr_url}`);
+  if (job.summary) lines.push(`${m.summaryLabel} ${job.summary}`);
+  if (job.last_error) lines.push(`${m.errorLabel} ${job.last_error}`);
   return lines.join("\n");
 }

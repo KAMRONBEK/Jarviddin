@@ -5,7 +5,11 @@ export type TranscribeResult = { text: string } | { error: string };
 /**
  * OpenAI Whisper transcription. Does not log raw audio; errors avoid echoing full response bodies.
  */
-export async function transcribeAudio(buffer: Buffer, filename: string): Promise<TranscribeResult> {
+export async function transcribeAudio(
+  buffer: Buffer,
+  filename: string,
+  language?: string
+): Promise<TranscribeResult> {
   if (!config.openai.apiKey.trim()) {
     return { error: "OPENAI_API_KEY is not set" };
   }
@@ -13,6 +17,9 @@ export async function transcribeAudio(buffer: Buffer, filename: string): Promise
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(buffer)]), filename);
   form.append("model", "whisper-1");
+  if (language) {
+    form.append("language", language);
+  }
 
   try {
     const res = await fetch(`${config.openai.apiBase}/audio/transcriptions`, {

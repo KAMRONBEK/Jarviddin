@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { Telegraf, Markup } from "telegraf";
+import type { Context } from "telegraf";
 import { config, isCursorConfigured } from "../config.js";
 import { buildCursorAgentPrompt } from "./agentPrompt.js";
 import { enqueueCursorAgent, formatJobStatusLine } from "../jobs/queue.js";
@@ -15,13 +16,17 @@ import { createCard, isTrelloConfigured } from "../integrations/trello.js";
 import { notifyNullClawWorker } from "../integrations/nullclaw.js";
 import { transcribeAudio } from "../integrations/whisper.js";
 import { dispatchConversationalText } from "./conversational.js";
+import { resolveLocale } from "../i18n/resolve.js";
+import { tx } from "../i18n/messages.js";
+import { whisperLanguageForLocale } from "../i18n/whisperLang.js";
+import { normalizeAppLocale } from "../i18n/types.js";
 
 function allowlistMiddleware(bot: Telegraf): void {
   bot.use(async (ctx, next) => {
     const uid = ctx.from?.id;
     if (uid === undefined) return;
     if (!config.telegram.allowedUserIds.includes(uid)) {
-      await ctx.reply("Access denied.");
+      await ctx.reply(tx(resolveLocale(ctx), "accessDenied"));
       return;
     }
     await next();
@@ -33,60 +38,63 @@ export function createBot(): Telegraf {
   allowlistMiddleware(bot);
 
   bot.start(async (ctx) => {
+    const loc = resolveLocale(ctx);
     const gateLine = config.deepseek.apiKey.trim()
-      ? "When DEEPSEEK_API_KEY is set, /agent may ask a quick question before starting the agent."
+      ? tx(loc, "cmdGateDeepSeek")
       : null;
     const voiceLine = config.openai.apiKey.trim()
-      ? "Voice notes are transcribed with Whisper (OPENAI_API_KEY)."
-      : "Set OPENAI_API_KEY to enable voice messages (Whisper).";
+      ? tx(loc, "voiceLineOpenAI")
+      : tx(loc, "voiceLineSetOpenAI");
     const convLine = config.deepseek.apiKey.trim()
-      ? "Plain text (not a /command) is classified: agent tasks use the same flow as /agent; small talk gets a short reply."
-      : "Plain text without DEEPSEEK_API_KEY uses CONVERSATIONAL_DEFAULT_AGENT and simple heuristics (see docs).";
+      ? tx(loc, "convLineDeepSeek")
+      : tx(loc, "convLineNoDeepSeek");
     await ctx.reply(
       [
-        "Jarviddin orchestrator.",
+        tx(loc, "startOrchestrator"),
         "",
         convLine,
         voiceLine,
         "",
-        "Commands:",
-        "/agent <instructions> — run a Cursor Cloud Agent on your default repo",
-        "Optional: include “merge to main” anywhere in /agent text (any case) to ask Cursor to merge the PR to main when done.",
+        tx(loc, "commandsHeader"),
+        tx(loc, "cmdAgentDesc"),
+        tx(loc, "cmdMergeMergeMain"),
         ...(gateLine ? [gateLine] : []),
-        "/repo <https://github.com/owner/repo> [ref] — override default repo/ref",
-        "/status <jobId> — show stored job row",
-        "/trello <card title> — create a Trello card (if Trello env is set)",
-        "/mergepr <number> — merge a PR on GitHub default owner/repo (if GitHub token set)",
-        "/nullclaw_ping — POST a test payload to NULLCLAW_WEBHOOK_URL (if set)",
-        "/help — this message",
+        tx(loc, "cmdRepoDesc"),
+        tx(loc, "cmdStatusDesc"),
+        tx(loc, "cmdTrelloDesc"),
+        tx(loc, "cmdMergeprDesc"),
+        tx(loc, "cmdNullclawDesc"),
+        tx(loc, "cmdHelpDesc"),
       ].join("\n")
     );
   });
 
-  bot.help((ctx) => ctx.reply("Use /start for commands."));
+  bot.help((ctx) => ctx.reply(tx(resolveLocale(ctx), "helpStart")));
 
   bot.command("repo", async (ctx) => {
+    const loc = resolveLocale(ctx);
     const text = (ctx.message && "text" in ctx.message ? ctx.message.text : "") ?? "";
     const parts = text.trim().split(/\s+/).slice(1);
     if (parts.length < 1) {
-      await ctx.reply("Usage: /repo https://github.com/owner/repo [ref]");
+      await ctx.reply(tx(loc, "repoUsage"));
       return;
     }
     const repoUrl = parts[0];
     const ref = parts[1] ?? "main";
     if (!/^https:\/\/github\.com\//i.test(repoUrl)) {
-      await ctx.reply("Repository must be a https://github.com/... URL.");
+      await ctx.reply(tx(loc, "repoMustBeGithub"));
       return;
     }
     upsertUserSession(ctx.from!.id, { default_repo: repoUrl, default_ref: ref });
-    await ctx.reply(`Default repo set to ${repoUrl} @ ${ref}`);
+    await ctx.reply(tx(loc, "repoDefaultSet", { repo: repoUrl, ref }));
   });
 
   bot.command("agent", async (ctx) => {
+    const loc = resolveLocale(ctx);
     const text = (ctx.message && "text" in ctx.message ? ctx.message.text : "") ?? "";
     const prompt = text.replace(/^\/agent(@\S+)?\s*/i, "").trim();
     if (!prompt) {
-      await ctx.reply("Usage: /agent <what the Cursor agent should do>");
+      await ctx.reply(tx(loc, "agentUsage"));
       return;
     }
     if (config.deepseek.apiKey.trim()) {
@@ -94,34 +102,35 @@ export function createBot(): Telegraf {
       return;
     }
     if (!isCursorConfigured()) {
-      await ctx.reply("Set CURSOR_API_KEY to run /agent (and DEFAULT_GITHUB_REPO or /repo).");
+      await ctx.reply(tx(loc, "agentNeedCursorKey"));
       return;
     }
     const { repository, ref } = resolveRepoForUser(ctx.from!.id);
     if (!repository) {
-      await ctx.reply("Set DEFAULT_GITHUB_REPO or use /repo first.");
+      await ctx.reply(tx(loc, "agentNeedRepo"));
       return;
     }
-    await ctx.reply("Starting Cursor agent…");
+    await ctx.reply(tx(loc, "startingAgent"));
     const res = await enqueueCursorAgent({
       telegramUserId: ctx.from!.id,
       chatId: ctx.chat!.id,
       prompt: buildCursorAgentPrompt(prompt),
       repository,
       ref,
+      locale: loc,
     });
     if (!res.ok) {
-      await ctx.reply(`Failed: ${res.error}`);
+      await ctx.reply(`${tx(loc, "failedPrefix")} ${res.error}`);
       return;
     }
-    await ctx.reply(`Queued.\nJob: ${res.jobId}\nCursor agent: ${res.cursorAgentId}`);
+    await ctx.reply(tx(loc, "queuedJob", { jobId: res.jobId!, cursorAgentId: res.cursorAgentId! }));
   });
 
   bot.action(/^ac:([a-f0-9]+):(\d+)$/, async (ctx) => {
     const id = ctx.match[1];
     const idx = Number.parseInt(ctx.match[2], 10);
     if (Number.isNaN(idx)) {
-      await ctx.answerCbQuery("Invalid option.");
+      await ctx.answerCbQuery(tx(resolveLocale(ctx), "invalidOption"));
       return;
     }
     await handleAgentClarifyCallback(ctx, id, idx);
@@ -132,63 +141,66 @@ export function createBot(): Telegraf {
   });
 
   bot.command("status", async (ctx) => {
+    const loc = resolveLocale(ctx);
     const text = (ctx.message && "text" in ctx.message ? ctx.message.text : "") ?? "";
     const id = text.replace(/^\/status(@\S+)?\s*/i, "").trim();
     if (!id) {
-      await ctx.reply("Usage: /status <full job UUID>");
+      await ctx.reply(tx(loc, "statusUsage"));
       return;
     }
     const job = getJobById(id);
     if (!job) {
-      await ctx.reply("Job not found.");
+      await ctx.reply(tx(loc, "jobNotFound"));
       return;
     }
     await ctx.reply(formatJobStatusLine(job));
   });
 
   bot.command("trello", async (ctx) => {
+    const loc = resolveLocale(ctx);
     const text = (ctx.message && "text" in ctx.message ? ctx.message.text : "") ?? "";
     const title = text.replace(/^\/trello(@\S+)?\s*/i, "").trim();
     if (!title) {
-      await ctx.reply("Usage: /trello <card title>");
+      await ctx.reply(tx(loc, "trelloUsage"));
       return;
     }
     if (!isTrelloConfigured()) {
-      await ctx.reply("Trello is not configured. Set TRELLO_KEY, TRELLO_TOKEN, TRELLO_DEFAULT_LIST_ID.");
+      await ctx.reply(tx(loc, "trelloNotConfigured"));
       return;
     }
     const r = await createCard(title);
     if (!r.ok) {
-      await ctx.reply(`Trello error: ${r.message}`);
+      await ctx.reply(`${tx(loc, "trelloErrorPrefix")} ${r.message}`);
       return;
     }
-    await ctx.reply(r.url ? `Created: ${r.url}` : r.message);
+    await ctx.reply(r.url ? `${tx(loc, "createdPrefix")} ${r.url}` : r.message);
   });
 
   bot.command("mergepr", async (ctx) => {
+    const loc = resolveLocale(ctx);
     const text = (ctx.message && "text" in ctx.message ? ctx.message.text : "") ?? "";
     const numStr = text.replace(/^\/mergepr(@\S+)?\s*/i, "").trim();
     const pr = Number.parseInt(numStr, 10);
     if (Number.isNaN(pr)) {
-      await ctx.reply("Usage: /mergepr <number>\nRequires GITHUB_TOKEN and GITHUB_DEFAULT_OWNER / GITHUB_DEFAULT_REPO.");
+      await ctx.reply(tx(loc, "mergeprUsage"));
       return;
     }
     if (!isGitHubConfigured()) {
-      await ctx.reply("GitHub merge not configured (GITHUB_TOKEN).");
+      await ctx.reply(tx(loc, "mergeprGithubNotConfigured"));
       return;
     }
     const parts = resolveDefaultRepoParts();
     if (!parts) {
-      await ctx.reply("Set GITHUB_DEFAULT_OWNER and GITHUB_DEFAULT_REPO for /mergepr.");
+      await ctx.reply(tx(loc, "mergeprOwnerRepo"));
       return;
     }
     const id = randomBytes(4).toString("hex");
-    insertPendingAction(id, ctx.from!.id, ctx.chat!.id, "merge_pr", JSON.stringify({ ...parts, pr }));
+    insertPendingAction(id, ctx.from!.id, ctx.chat!.id, "merge_pr", JSON.stringify({ ...parts, pr, locale: loc }));
     await ctx.reply(
-      `Merge PR #${pr} in ${parts.owner}/${parts.repo}?`,
+      tx(loc, "mergeConfirm", { pr: String(pr), owner: parts.owner, repo: parts.repo }),
       Markup.inlineKeyboard([
-        Markup.button.callback("Confirm merge", `m:${id}`),
-        Markup.button.callback("Cancel", `x:${id}`),
+        Markup.button.callback(tx(loc, "confirmMerge"), `m:${id}`),
+        Markup.button.callback(tx(loc, "cancel"), `x:${id}`),
       ])
     );
   });
@@ -197,29 +209,37 @@ export function createBot(): Telegraf {
     await ctx.answerCbQuery();
     const id = ctx.match[1];
     const row = takePendingAction(id);
+    const loc = resolveLocale(ctx);
     if (!row || row.telegram_user_id !== ctx.from?.id) {
-      await ctx.editMessageText("Invalid or expired confirmation.");
+      await ctx.editMessageText(tx(loc, "mergeInvalidExpired"));
       return;
     }
     if (row.action !== "merge_pr") {
-      await ctx.editMessageText("Unknown action.");
+      await ctx.editMessageText(tx(loc, "mergeUnknownAction"));
       return;
     }
-    const payload = JSON.parse(row.payload) as { owner: string; repo: string; pr: number };
+    const payload = JSON.parse(row.payload) as { owner: string; repo: string; pr: number; locale?: string };
+    const mloc = normalizeAppLocale(payload.locale);
     const result = await mergePullRequest(payload.owner, payload.repo, payload.pr);
-    await ctx.editMessageText(result.ok ? result.message : `Merge failed: ${result.message}`);
+    await ctx.editMessageText(
+      result.ok ? result.message : `${tx(mloc, "mergeFailedPrefix")} ${result.message}`
+    );
   });
 
   bot.action(/^x:([a-f0-9]+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const id = ctx.match[1];
-    takePendingAction(id);
-    await ctx.editMessageText("Cancelled.");
+    const row = takePendingAction(id);
+    const loc = row
+      ? normalizeAppLocale((JSON.parse(row.payload) as { locale?: string }).locale)
+      : resolveLocale(ctx);
+    await ctx.editMessageText(tx(loc, "mergeCancelled"));
   });
 
   bot.command("nullclaw_ping", async (ctx) => {
+    const loc = resolveLocale(ctx);
     const r = await notifyNullClawWorker({ event: "ping", at: new Date().toISOString() });
-    await ctx.reply(r.ok ? "NullClaw webhook OK." : `NullClaw: ${r.detail ?? "skipped"}`);
+    await ctx.reply(r.ok ? tx(loc, "nullclawOk") : tx(loc, "nullclawSkipped", { detail: r.detail ?? "skipped" }));
   });
 
   bot.on("text", async (ctx) => {
@@ -229,21 +249,22 @@ export function createBot(): Telegraf {
   });
 
   bot.on("voice", async (ctx) => {
+    const loc = resolveLocale(ctx);
     if (!config.openai.apiKey.trim()) {
-      await ctx.reply("Voice input requires OPENAI_API_KEY (Whisper).");
+      await ctx.reply(tx(loc, "voiceNeedsOpenai"));
       return;
     }
     const fileId = ctx.message.voice.file_id;
     const fileUrl = await ctx.telegram.getFileLink(fileId);
     const res = await fetch(fileUrl);
     if (!res.ok) {
-      await ctx.reply("Could not download voice file.");
+      await ctx.reply(tx(loc, "voiceDownloadFailed"));
       return;
     }
     const buf = Buffer.from(await res.arrayBuffer());
-    const tr = await transcribeAudio(buf, "voice.ogg");
+    const tr = await transcribeAudio(buf, "voice.ogg", whisperLanguageForLocale(loc));
     if ("error" in tr) {
-      await ctx.reply(`Transcription failed: ${tr.error}`);
+      await ctx.reply(`${tx(loc, "transcriptionFailedPrefix")} ${tr.error}`);
       return;
     }
     await dispatchConversationalText(ctx, tr.text);
@@ -251,7 +272,7 @@ export function createBot(): Telegraf {
 
   bot.catch((err, ctx) => {
     console.error("Telegraf error", err);
-    void ctx?.reply?.("Internal error.");
+    if (ctx) void ctx.reply(tx(resolveLocale(ctx as Context), "internalError"));
   });
 
   return bot;

@@ -1,4 +1,12 @@
 import "dotenv/config";
+import type { AppLocale } from "./i18n/types.js";
+
+function parseAppLocale(raw: string | undefined): AppLocale {
+  if (!raw?.trim()) return "en";
+  const v = raw.toLowerCase().trim();
+  if (v === "uz" || v === "ru" || v === "en") return v;
+  return "en";
+}
 
 function parseBool(raw: string | undefined): boolean | undefined {
   if (raw === undefined || raw === "") return undefined;
@@ -31,6 +39,11 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   publicBaseUrl: process.env.PUBLIC_BASE_URL?.replace(/\/$/, "") ?? "",
   localDev,
+
+  /** When Telegram does not send language_code, use this for UI strings (en | uz | ru). */
+  bot: {
+    defaultLocale: parseAppLocale(process.env.BOT_DEFAULT_LOCALE),
+  },
 
   telegram: {
     token: process.env.TELEGRAM_BOT_TOKEN ?? "",

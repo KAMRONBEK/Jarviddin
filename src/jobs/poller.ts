@@ -3,6 +3,9 @@ import { CursorAgentsClient, classifyAgentStatus, isTerminalAgentStatus } from "
 import { listActiveJobs, updateJob, type AgentJobRow } from "../store/db.js";
 import { wrapTerminalNotice } from "../llm/persona.js";
 import type { Telegraf } from "telegraf";
+import type { AppLocale } from "../i18n/types.js";
+import { normalizeAppLocale } from "../i18n/types.js";
+import { strings, tx } from "../i18n/messages.js";
 
 const client = new CursorAgentsClient();
 
@@ -19,7 +22,8 @@ export function startAgentPoller(bot: Telegraf): NodeJS.Timeout {
         const created = new Date(job.created_at).getTime();
         if (now - created > maxMs) {
           updateJob(job.id, { status: "failed", last_error: "Polling timeout exceeded" });
-          await notifyUser(bot, job, "failed", "Timed out waiting for Cursor agent.");
+          const loc = normalizeAppLocale(job.locale);
+          await notifyUser(bot, job, "failed", strings(loc).pollerTimedOut);
           continue;
         }
 
@@ -49,13 +53,14 @@ export function startAgentPoller(bot: Telegraf): NodeJS.Timeout {
             bot,
             job,
             success ? "completed" : "failed",
-            success ? formatSuccessMessage(agent) : `Agent ended with status: ${status}`
+            success ? formatSuccessMessage(agent, normalizeAppLocale(job.locale)) : tx(normalizeAppLocale(job.locale), "pollerAgentEnded", { status })
           );
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         updateJob(job.id, { status: "failed", last_error: msg });
-        await notifyUser(bot, job, "failed", `Poll error: ${msg}`);
+        const loc = normalizeAppLocale(job.locale);
+        await notifyUser(bot, job, "failed", `${strings(loc).pollerPollErrorPrefix} ${msg}`);
       }
     }
   }, interval);
@@ -67,16 +72,20 @@ async function notifyUser(
   kind: "completed" | "failed",
   body: string
 ): Promise<void> {
-  const prefix = kind === "completed" ? "Done" : "Failed";
-  const text = await wrapTerminalNotice(prefix, body);
+  const loc = normalizeAppLocale(job.locale);
+  const text = await wrapTerminalNotice(kind, body, loc);
   await bot.telegram.sendMessage(job.chat_id, text);
 }
 
-function formatSuccessMessage(agent: { target?: { prUrl?: string; branchName?: string; url?: string }; summary?: string }): string {
+function formatSuccessMessage(
+  agent: { target?: { prUrl?: string; branchName?: string; url?: string }; summary?: string },
+  locale: AppLocale
+): string {
+  const m = strings(locale);
   const parts: string[] = [];
   if (agent.summary) parts.push(agent.summary);
-  if (agent.target?.prUrl) parts.push(`PR: ${agent.target.prUrl}`);
-  else if (agent.target?.url) parts.push(`Agent: ${agent.target.url}`);
-  if (agent.target?.branchName) parts.push(`Branch: ${agent.target.branchName}`);
-  return parts.join("\n\n") || "Agent finished.";
+  if (agent.target?.prUrl) parts.push(tx(locale, "pollerPrLine", { url: agent.target.prUrl }));
+  else if (agent.target?.url) parts.push(tx(locale, "pollerAgentLine", { url: agent.target.url }));
+  if (agent.target?.branchName) parts.push(tx(locale, "pollerBranchLine", { branch: agent.target.branchName }));
+  return parts.join("\n\n") || m.pollerAgentFinished;
 }
