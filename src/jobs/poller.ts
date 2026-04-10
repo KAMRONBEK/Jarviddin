@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { CursorAgentsClient, classifyAgentStatus, isTerminalAgentStatus } from "../cursor/client.js";
 import { listActiveJobs, updateJob, type AgentJobRow } from "../store/db.js";
+import { wrapTerminalNotice } from "../llm/persona.js";
 import type { Telegraf } from "telegraf";
 
 const client = new CursorAgentsClient();
@@ -67,7 +68,7 @@ async function notifyUser(
   body: string
 ): Promise<void> {
   const prefix = kind === "completed" ? "Done" : "Failed";
-  const text = `${prefix}\n${body}`;
+  const text = await wrapTerminalNotice(prefix, body);
   await bot.telegram.sendMessage(job.chat_id, text);
 }
 

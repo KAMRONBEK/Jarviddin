@@ -13,6 +13,8 @@ import {
 import { mergePullRequest, isGitHubConfigured, resolveDefaultRepoParts } from "../integrations/github.js";
 import { createCard, isTrelloConfigured } from "../integrations/trello.js";
 import { notifyNullClawWorker } from "../integrations/nullclaw.js";
+import { transcribeAudio } from "../integrations/whisper.js";
+import { dispatchConversationalText } from "./conversational.js";
 
 function allowlistMiddleware(bot: Telegraf): void {
   bot.use(async (ctx, next) => {
@@ -34,9 +36,18 @@ export function createBot(): Telegraf {
     const gateLine = config.deepseek.apiKey.trim()
       ? "When DEEPSEEK_API_KEY is set, /agent may ask a quick question before starting the agent."
       : null;
+    const voiceLine = config.openai.apiKey.trim()
+      ? "Voice notes are transcribed with Whisper (OPENAI_API_KEY)."
+      : "Set OPENAI_API_KEY to enable voice messages (Whisper).";
+    const convLine = config.deepseek.apiKey.trim()
+      ? "Plain text (not a /command) is classified: agent tasks use the same flow as /agent; small talk gets a short reply."
+      : "Plain text without DEEPSEEK_API_KEY uses CONVERSATIONAL_DEFAULT_AGENT and simple heuristics (see docs).";
     await ctx.reply(
       [
         "Jarviddin orchestrator.",
+        "",
+        convLine,
+        voiceLine,
         "",
         "Commands:",
         "/agent <instructions> — run a Cursor Cloud Agent on your default repo",
@@ -209,6 +220,33 @@ export function createBot(): Telegraf {
   bot.command("nullclaw_ping", async (ctx) => {
     const r = await notifyNullClawWorker({ event: "ping", at: new Date().toISOString() });
     await ctx.reply(r.ok ? "NullClaw webhook OK." : `NullClaw: ${r.detail ?? "skipped"}`);
+  });
+
+  bot.on("text", async (ctx) => {
+    const text = ctx.message.text ?? "";
+    if (text.trimStart().startsWith("/")) return;
+    await dispatchConversationalText(ctx, text);
+  });
+
+  bot.on("voice", async (ctx) => {
+    if (!config.openai.apiKey.trim()) {
+      await ctx.reply("Voice input requires OPENAI_API_KEY (Whisper).");
+      return;
+    }
+    const fileId = ctx.message.voice.file_id;
+    const fileUrl = await ctx.telegram.getFileLink(fileId);
+    const res = await fetch(fileUrl);
+    if (!res.ok) {
+      await ctx.reply("Could not download voice file.");
+      return;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    const tr = await transcribeAudio(buf, "voice.ogg");
+    if ("error" in tr) {
+      await ctx.reply(`Transcription failed: ${tr.error}`);
+      return;
+    }
+    await dispatchConversationalText(ctx, tr.text);
   });
 
   bot.catch((err, ctx) => {

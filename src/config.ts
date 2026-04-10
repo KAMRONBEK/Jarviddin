@@ -85,6 +85,21 @@ export const config = {
     model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
     maxClarifyRounds: Math.max(1, Math.min(10, Number(process.env.DEEPSEEK_MAX_CLARIFY_ROUNDS) || 3)),
   },
+
+  /** OpenAI: Whisper STT only (optional; voice messages disabled if unset). */
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY ?? "",
+    apiBase: (process.env.OPENAI_API_BASE ?? "https://api.openai.com/v1").replace(/\/$/, ""),
+  },
+
+  /**
+   * Conversational messages (non-command text / voice): intent when DEEPSEEK_API_KEY is unset.
+   * If false, short/greeting-style messages use a canned chat reply; coding-like text routes to agent.
+   */
+  conversational: {
+    defaultToAgentWhenDeepSeekUnset: parseBool(process.env.CONVERSATIONAL_DEFAULT_AGENT) ?? false,
+    assistantSystemPrompt: process.env.ASSISTANT_SYSTEM_PROMPT ?? "",
+  },
 };
 
 /** True when Cursor API calls can be made (poller + /agent). Default repo is validated separately for non-local. */

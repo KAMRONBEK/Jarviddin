@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { stripJsonFence } from "./jsonText.js";
 
 export interface GateResult {
   can_run: boolean;
@@ -11,13 +12,6 @@ export interface GateInput {
   repository: string;
   ref: string;
   clarifications: string[];
-}
-
-function stripJsonFence(text: string): string {
-  const t = text.trim();
-  const fence = /^```(?:json)?\s*([\s\S]*?)```$/m.exec(t);
-  if (fence) return fence[1].trim();
-  return t;
 }
 
 function parseGateJson(text: string): GateResult | null {
