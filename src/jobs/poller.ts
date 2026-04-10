@@ -54,7 +54,7 @@ export function startAgentPoller(bot: Telegraf): NodeJS.Timeout {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         updateJob(job.id, { status: "failed", last_error: msg });
-          await notifyUser(bot, job, "failed", `Poll error: ${msg}`);
+        await notifyUser(bot, job, "failed", `Poll error: ${msg}`);
       }
     }
   }, interval);

@@ -68,6 +68,16 @@ export const config = {
     webhookUrl: process.env.NULLCLAW_WEBHOOK_URL ?? "",
   },
 
+  /**
+   * Comma-separated phrases; if any appear anywhere in /agent text (case-insensitive), merge-to-main instructions are appended.
+   */
+  agent: {
+    mergeMainPhrases: (process.env.AGENT_MERGE_MAIN_KEYWORD ?? "merge to main")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
+
   /** Optional: DeepSeek gate before starting Cursor agent (blocking questions + quick-reply). */
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY ?? "",

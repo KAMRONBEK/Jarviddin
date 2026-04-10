@@ -11,20 +11,20 @@ Templates: import [`.env.dev.example`](../.env.dev.example) into Doppler **`dev`
 3. **Laptop:** install CLI, `doppler login`, `doppler setup` → pick project + **`dev`**.
 4. **VPS:** install CLI, `doppler login` (service token recommended for servers), `doppler setup` → same project + **`prd`**.
 
-Run the app **through** Doppler so env is injected:
+`npm run dev` and `npm start` already wrap **`doppler run -c dev`** and **`doppler run -c prd`**, so you get the right config without relying on the last `doppler setup` choice. Your Doppler project must define configs named **`dev`** and **`prd`** (or edit `package.json` scripts to match your names).
 
 ```bash
-# Local development
-doppler run -- npm run dev
+# Local development (loads Doppler `dev`)
+npm run dev
 
-# Production (example)
-doppler run -- node dist/index.js
+# Production after build (loads Doppler `prd`)
+npm run build && npm start
 ```
 
-Docker:
+Docker (pick config explicitly if the container does not use `npm start`):
 
 ```bash
-doppler run -- docker compose up -d
+doppler run -c prd -- docker compose up -d
 ```
 
 Use a Compose file that does **not** bake secrets into the image; only `doppler run` supplies env at start.

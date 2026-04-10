@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "doppler run -- node dist/index.js",
-    "dev": "doppler run -- tsx watch src/index.ts",
+    "start": "doppler run -c prd -- node dist/index.js",
+    "dev": "doppler run -c dev -- tsx watch src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

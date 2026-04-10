@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Markup } from "telegraf";
 import type { Context } from "telegraf";
 import { config, isCursorConfigured } from "../config.js";
+import { buildCursorAgentPrompt, parseMergeMainKeyword } from "./agentPrompt.js";
 import { gateAgentLaunch } from "../llm/deepseek.js";
 import { enqueueCursorAgent } from "../jobs/queue.js";
 import {
@@ -44,7 +45,7 @@ async function enqueueAndReply(
     await ctx.reply("Set CURSOR_API_KEY to run agents (and DEFAULT_GITHUB_REPO or /repo).");
     return;
   }
-  const finalPrompt = buildFinalPrompt(draftPrompt, clarifications);
+  const finalPrompt = buildCursorAgentPrompt(buildFinalPrompt(draftPrompt, clarifications));
   await ctx.reply("Starting Cursor agent…");
   const res = await enqueueCursorAgent({
     telegramUserId,
@@ -83,8 +84,9 @@ export async function runAgentWithGate(
     return;
   }
 
+  const { prompt: gatePrompt } = parseMergeMainKeyword(draftPrompt);
   const gate = await gateAgentLaunch({
-    userPrompt: draftPrompt,
+    userPrompt: gatePrompt,
     repository,
     ref,
     clarifications,

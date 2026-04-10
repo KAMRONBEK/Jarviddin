@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Telegraf, Markup } from "telegraf";
 import { config, isCursorConfigured } from "../config.js";
+import { buildCursorAgentPrompt } from "./agentPrompt.js";
 import { enqueueCursorAgent, formatJobStatusLine } from "../jobs/queue.js";
 import { upsertUserSession, insertPendingAction, takePendingAction, getJobById } from "../store/db.js";
 import {
@@ -39,6 +40,7 @@ export function createBot(): Telegraf {
         "",
         "Commands:",
         "/agent <instructions> — run a Cursor Cloud Agent on your default repo",
+        "Optional: include “merge to main” anywhere in /agent text (any case) to ask Cursor to merge the PR to main when done.",
         ...(gateLine ? [gateLine] : []),
         "/repo <https://github.com/owner/repo> [ref] — override default repo/ref",
         "/status <jobId> — show stored job row",
@@ -93,7 +95,7 @@ export function createBot(): Telegraf {
     const res = await enqueueCursorAgent({
       telegramUserId: ctx.from!.id,
       chatId: ctx.chat!.id,
-      prompt,
+      prompt: buildCursorAgentPrompt(prompt),
       repository,
       ref,
     });
