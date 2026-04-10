@@ -1,0 +1,5 @@
+# Replace your-domain.com and upstream port (3000) as needed.
+your-domain.com {
+    encode gzip
+    reverse_proxy localhost:3000
+}
