@@ -64,6 +64,8 @@ Pushing to **`main`** runs [`.github/workflows/deploy.yml`](.github/workflows/de
 | `VPS_USER` | SSH user (e.g. `root` or your deploy user) |
 | `VPS_SSH_KEY` | **Private** SSH key (full PEM, including `BEGIN` / `END` lines) whose **public** key is in `~/.ssh/authorized_keys` on the server |
 
+Do **not** paste the `.pub` file here — GitHub Actions needs the **private** key only.
+
 Use a **dedicated deploy key** or a machine key only for this repo — not your personal daily-use key.
 
 ### Server prerequisites
