@@ -91,7 +91,7 @@ export const config = {
       .filter(Boolean),
   },
 
-  /** Optional: DeepSeek gate before starting Cursor agent (blocking questions + quick-reply). */
+  /** Optional: DeepSeek for conversational routing, inline answers, and the /agent gate. */
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY ?? "",
     baseUrl: (process.env.DEEPSEEK_API_BASE ?? "https://api.deepseek.com").replace(/\/$/, ""),
@@ -107,7 +107,7 @@ export const config = {
 
   /**
    * Conversational messages (non-command text / voice): intent when DEEPSEEK_API_KEY is unset.
-   * If false, short/greeting-style messages use a canned chat reply; coding-like text routes to agent.
+   * If false, only explicit repo work orders route to agent; other messages use fallback chat behavior.
    */
   conversational: {
     defaultToAgentWhenDeepSeekUnset: parseBool(process.env.CONVERSATIONAL_DEFAULT_AGENT) ?? false,

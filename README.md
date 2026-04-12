@@ -118,6 +118,8 @@ For production, prefer a non-root deploy user and key-only SSH; see [docs/ubuntu
 
 ## Commands (Telegram)
 
+Plain text that does not start with `/` is handled conversationally: explicit repo work orders may start the same flow as `/agent`, while general or factual questions are answered inline.
+
 - `/agent <instructions>` — launch a Cursor Cloud Agent on the default (or `/repo`) GitHub URL.
 - `/repo <https://github.com/owner/repo> [ref]` — per-user default repo/ref.
 - `/status <job-uuid>` — show a stored job row.

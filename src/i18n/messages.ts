@@ -7,11 +7,13 @@ const S = {
     accessDenied: "Access denied.",
     startOrchestrator: "Jarviddin orchestrator.",
     convLineDeepSeek:
-      "Plain text (not a /command) is classified: agent tasks use the same flow as /agent; small talk gets a short reply.",
+      "Plain text (not a /command) is classified: explicit repo work orders can start agent flow; other questions get an inline answer.",
     convLineNoDeepSeek:
-      "Plain text without DEEPSEEK_API_KEY uses CONVERSATIONAL_DEFAULT_AGENT and simple heuristics (see docs).",
+      "Plain text without DEEPSEEK_API_KEY uses simple routing: explicit repo work can start agent flow; other messages get a fallback reply.",
     voiceLineOpenAI: "Voice notes are transcribed with Whisper (OPENAI_API_KEY).",
     voiceLineSetOpenAI: "Set OPENAI_API_KEY to enable voice messages (Whisper).",
+    inlineAnswerNeedsLlm: "Inline answers need DEEPSEEK_API_KEY. For repo work, use /agent.",
+    inlineAnswerFailed: "I couldn't answer inline just now. Try again, or use /agent for repo work.",
     commandsHeader: "Commands:",
     cmdAgentDesc: "/agent <instructions> — run a Cursor Cloud Agent on your default repo",
     cmdMergeMergeMain:
@@ -90,11 +92,14 @@ const S = {
     accessDenied: "Kirish rad etildi.",
     startOrchestrator: "Jarviddin orkestratori.",
     convLineDeepSeek:
-      "/buyruq bo‘lmagan matn tahlil qilinadi: agent vazifalari /agent bilan bir xil; oddiy suhbatga qisqa javob.",
+      "/buyruq bo‘lmagan matn tahlil qilinadi: repodagi aniq ish topshiriqlari agent oqimini boshlashi mumkin, boshqa savollarga esa ichki javob beriladi.",
     convLineNoDeepSeek:
-      "DEEPSEEK_API_KEY bo‘lmasa, matn CONVERSATIONAL_DEFAULT_AGENT va oddiy qoidalarga ko‘ra ishlaydi (hujjatlar).",
+      "DEEPSEEK_API_KEY bo‘lmasa, matn oddiy qoidalar bilan ishlaydi: repodagi aniq ishlar agent oqimini boshlashi mumkin, qolgan xabarlarga esa zaxira javob qaytadi.",
     voiceLineOpenAI: "Ovozli xabarlar Whisper orqali transkripsiya qilinadi (OPENAI_API_KEY).",
     voiceLineSetOpenAI: "Ovozni yoqish uchun OPENAI_API_KEY ni sozlang (Whisper).",
+    inlineAnswerNeedsLlm: "Ichki javoblar uchun DEEPSEEK_API_KEY kerak. Repo ishlari uchun /agent dan foydalaning.",
+    inlineAnswerFailed:
+      "Hozir ichki javob bera olmadim. Qayta urinib ko‘ring yoki repo ishlari uchun /agent dan foydalaning.",
     commandsHeader: "Buyruqlar:",
     cmdAgentDesc: "/agent <ko‘rsatma> — standart repoda Cursor Cloud Agent ishga tushirish",
     cmdMergeMergeMain:
@@ -173,11 +178,14 @@ const S = {
     accessDenied: "Доступ запрещён.",
     startOrchestrator: "Оркестратор Jarviddin.",
     convLineDeepSeek:
-      "Обычный текст (не /команда) классифицируется: задачи агента — как /agent; болталка — короткий ответ.",
+      "Обычный текст (не /команда) классифицируется: явные задания по репозиторию могут запускать поток агента, остальные вопросы получают ответ прямо в чате.",
     convLineNoDeepSeek:
-      "Без DEEPSEEK_API_KEY обычный текст обрабатывается через CONVERSATIONAL_DEFAULT_AGENT и эвристики (см. доки).",
+      "Без DEEPSEEK_API_KEY обычный текст идёт по простым правилам: явная работа по репозиторию может запускать поток агента, остальные сообщения получают запасной ответ.",
     voiceLineOpenAI: "Голосовые расшифровываются Whisper (OPENAI_API_KEY).",
     voiceLineSetOpenAI: "Укажите OPENAI_API_KEY для голосовых сообщений (Whisper).",
+    inlineAnswerNeedsLlm: "Для ответов в чате нужен DEEPSEEK_API_KEY. Для работы с репозиторием используйте /agent.",
+    inlineAnswerFailed:
+      "Сейчас не удалось ответить прямо в чате. Попробуйте ещё раз или используйте /agent для работы с репозиторием.",
     commandsHeader: "Команды:",
     cmdAgentDesc: "/agent <инструкция> — запуск Cursor Cloud Agent в репозитории по умолчанию",
     cmdMergeMergeMain:
